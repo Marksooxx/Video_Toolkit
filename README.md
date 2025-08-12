@@ -10,22 +10,22 @@
 
 所有音频处理脚本都会在当前目录下查找视频文件（如 `.mp4`），并在 `~audio` 文件夹中寻找匹配的 `.wav` 音频文件，处理后的视频将输出到 `~mix` 文件夹。
 
-#### 1. `a1_SingleAudio_MixWithOriginal.py`
-
-*   **功能**: 将**单个**音频文件与视频的**原始音轨混合**。
-*   **输入要求**: 音频文件名必须与视频文件名完全相同（例如，为 `video1.mp4` 匹配 `video1.wav`）。
-*   **核心逻辑**: 使用 FFmpeg 的 `amix` 滤镜将两条音轨（原轨 + 新轨）混合。
-    ```
-    -filter_complex "[0:a][1:a]amix=inputs=2:duration=longest"
-    ```
-
-#### 2. `a2_SingleAudio_ReplaceOriginal.py`
+#### 1. `a1_SingleAudio_ReplaceOriginal.py`
 
 *   **功能**: 用**单个**音频文件**替换**视频的原始音轨。
 *   **输入要求**: 音频文件名必须与视频文件名完全相同（例如，为 `video1.mp4` 匹配 `video1.wav`）。
 *   **核心逻辑**: 使用 FFmpeg 的 `-map` 参数，只保留视频流和新的音频流，从而丢弃原音轨。
     ```
     -map 0:v:0 -map 1:a:0
+    ```
+
+#### 2. `a2_SingleAudio_MixWithOriginal.py`
+
+*   **功能**: 将**单个**音频文件与视频的**原始音轨混合**。
+*   **输入要求**: 音频文件名必须与视频文件名完全相同（例如，为 `video1.mp4` 匹配 `video1.wav`）。
+*   **核心逻辑**: 使用 FFmpeg 的 `amix` 滤镜将两条音轨（原轨 + 新轨）混合。
+    ```
+    -filter_complex "[0:a][1:a]amix=inputs=2:duration=longest"
     ```
 
 #### 3. `a3_MultiAudioAuto_MixWithOriginal_dePrefix.py`
