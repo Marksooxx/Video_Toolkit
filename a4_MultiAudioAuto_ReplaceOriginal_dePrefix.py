@@ -7,6 +7,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re # Import regular expressions for filename matching (optional but potentially useful)
+from pathlib import Path
 
 # --- 配置区 ---
 SCRIPT_NAME = "Merge_Prefixed_Audios"
@@ -317,7 +318,9 @@ def process_video_task(video_file):
 # --- 主程序 ---
 def main():
     start_time = time.time()
+    current_working_dir = Path.cwd().resolve()
     logging.info("="*20 + f" {SCRIPT_NAME} v{SCRIPT_VERSION} 実行開始 " + "="*20)
+    logging.info(f"実行ディレクトリ: {current_working_dir}")
     logging.info("モード: すべてのプレフィックスに一致する音声ファイルを検索し、ミキシング後にビデオにマージします。")
     logging.info("出力の長さは、元のビデオとミキシング後の音声のいずれか長い方になります。")
 

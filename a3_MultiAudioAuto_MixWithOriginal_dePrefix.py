@@ -7,6 +7,7 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re
+from pathlib import Path
 
 # --- 配置区 ---
 # Changed SCRIPT_NAME to reflect the new behavior (mixing instead of replacing)
@@ -357,7 +358,9 @@ def process_video_task(video_file):
 # --- 主程序 (基本不变, 更新脚本名称和描述) ---
 def main():
     start_time = time.time()
+    current_working_dir = Path.cwd().resolve()
     logging.info("="*20 + f" {SCRIPT_NAME} v{SCRIPT_VERSION} 実行開始 " + "="*20)
+    logging.info(f"実行ディレクトリ: {current_working_dir}")
     logging.info("モード: すべてのプレフィックスに一致する音声を検索し、元の音声とミックスしてビデオにマージします。") # Updated description
     logging.info("出力の長さは、元のビデオと外部ミックス音声のいずれか長い方になります。")
 

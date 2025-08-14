@@ -6,6 +6,7 @@ import logging
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 # --- 配置区 ---
 SCRIPT_NAME = "Mix_Audio_Video"
@@ -231,7 +232,9 @@ def process_video_task(video_file):
 # --- 主程序 ---
 def main():
     start_time = time.time()
+    current_working_dir = Path.cwd().resolve()
     logging.info("="*20 + f" {SCRIPT_NAME} v{SCRIPT_VERSION} 実行開始 " + "="*20)
+    logging.info(f"実行ディレクトリ: {current_working_dir}")
     logging.info("モード: 音声置換。出力の長さは、元のビデオと新しい音声のいずれか長い方になります。")
 
     # Use os.path.abspath directly on folder names (relative to CWD)
