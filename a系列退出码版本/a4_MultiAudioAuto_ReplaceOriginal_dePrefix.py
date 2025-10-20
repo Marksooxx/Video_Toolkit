@@ -7,7 +7,6 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import re # Import regular expressions for filename matching (optional but potentially useful)
-from pathlib import Path
 
 # --- 配置区 ---
 SCRIPT_NAME = "Merge_Prefixed_Audios"
@@ -135,7 +134,7 @@ def find_and_mix_audio(video_name, audio_dir, temp_dir):
     # --- amix 音量标准化配置 ---
     # normalize=0: 禁用音量标准化。直接混合所有音轨，保留原始音量。如果混合后音量过大，可能会导致削波失真 (clipping)。
     # normalize=1 (默认): 启用音量标准化。FFmpeg会自动调整每个音轨的音量，以防止混合后的总音量超过削波阈值，这通常会导致整体音量降低。
-    filter_complex_str = "".join(filter_complex_parts) + f"amix=inputs={len(matching_audios)}:duration=longest:normalize=1{map_output}" 
+    filter_complex_str = "".join(filter_complex_parts) + f"amix=inputs={len(matching_audios)}:duration=longest:normalize=0{map_output}" 
     mix_cmd.extend(['-filter_complex', filter_complex_str])
     mix_cmd.extend(['-map', map_output])
     # Output to temporary WAV file (PCM s16le is a safe choice for intermediate format)
@@ -318,9 +317,7 @@ def process_video_task(video_file):
 # --- 主程序 ---
 def main():
     start_time = time.time()
-    current_working_dir = Path.cwd().resolve()
     logging.info("="*20 + f" {SCRIPT_NAME} v{SCRIPT_VERSION} 実行開始 " + "="*20)
-    logging.info(f"実行ディレクトリ: {current_working_dir}")
     logging.info("モード: すべてのプレフィックスに一致する音声ファイルを検索し、ミキシング後にビデオにマージします。")
     logging.info("出力の長さは、元のビデオとミキシング後の音声のいずれか長い方になります。")
 
@@ -338,10 +335,12 @@ def main():
             logging.info(f"フォルダ '{dir_path}' の準備ができました。")
         except OSError as e:
             logging.error(f"フォルダ '{dir_path}' の作成またはアクセスに失敗しました: {e}。スクリプトを終了します。")
-            return
+            # Return non-zero status to indicate failure
+            sys.exit(1)
         if not os.path.isdir(dir_path):
              logging.error(f"パス '{dir_path}' は存在しますが、フォルダではありません。スクリプトを終了します。")
-             return
+             # Return non-zero status to indicate failure
+             sys.exit(1)
 
     # Find video files in current directory
     try:
@@ -349,12 +348,13 @@ def main():
         video_files = [f for f in os.listdir(current_dir) if f.lower().endswith('.mp4') and os.path.isfile(os.path.join(current_dir, f))]
         if not video_files:
             logging.warning(f"現在のディレクトリ '{os.path.abspath(current_dir)}' にMP4ファイルが見つかりませんでした。スクリプトを終了します。")
-            return
+            # Exit gracefully with success code as no work was done/failed
+            sys.exit(0)
         total_tasks = len(video_files)
         logging.info(f"処理対象のMP4ファイルが合計 {total_tasks} 個見つかりました。")
     except Exception as e:
         logging.error(f"MP4ファイルの検索中にエラーが発生しました: {e}。スクリプトを終了します。")
-        return
+        sys.exit(1)
 
     completed_tasks = 0
     skipped_tasks = 0
@@ -391,6 +391,9 @@ def main():
     except Exception as e:
         logging.error(f"スレッドプールの実行中に重大なエラーが発生しました: {e}")
         logging.error(traceback.format_exc())
+        # Consider this a script-level failure
+        failed_tasks = total_tasks - (completed_tasks + skipped_tasks)
+
 
     # --- Final Summary ---
     logging.info("-" * 60)
@@ -405,12 +408,59 @@ def main():
 
     if failed_tasks > 0: logging.warning("処理に失敗したタスクがあります。詳細については上記のログを確認してください。")
     if skipped_tasks > 0: logging.warning("スキップされたタスクがあります (一致する音声ファイルが見つからなかったため)。")
-    if total_tasks > 0 and completed_tasks == total_tasks and failed_tasks == 0 and skipped_tasks == 0:
+    if total_tasks > 0 and completed_tasks == total_tasks:
         logging.info("見つかったすべてのタスクが正常に完了しました！")
-    elif completed_tasks > 0 and failed_tasks == 0 and skipped_tasks == 0 :
+    elif completed_tasks > 0 and failed_tasks == 0:
          logging.info("正常に処理されたすべてのタスクが完了しました！")
 
     logging.info("="*20 + f" {SCRIPT_NAME} v{SCRIPT_VERSION} 実行終了 " + "="*20)
+
+    # --- Exit with appropriate code ---
+    if failed_tasks > 0:
+        logging.error(f"{failed_tasks}個のタスクが失敗したため、終了コード1で終了します。")
+        sys.exit(1)
+    else:
+        logging.info("失敗したタスクはなかったため、正常終了コード0で終了します。")
+        sys.exit(0)
+
+# --- Script Entry Point ---
+if __name__ == "__main__":
+    try:
+        # --- Dependency Check ---
+        logging.info("依存関係 (ffmpeg, ffprobe) を確認しています...")
+        try:
+            ffmpeg_check_code, _, _ = run_command(['ffmpeg', '-version'], 'ffmpeg check')
+            ffprobe_check_code, _, _ = run_command(['ffprobe', '-version'], 'ffprobe check')
+            # Check if command ran and succeeded
+            if ffmpeg_check_code is None or ffprobe_check_code is None:
+                 logging.critical("エラー：ffmpeg または ffprobe コマンドが見つからないか、実行できません。それらがインストールされ、システムのPATH環境変数に含まれていることを確認してください。スクリプトは続行できません。")
+                 sys.exit(1)
+            if ffmpeg_check_code != 0 or ffprobe_check_code != 0:
+                 logging.warning("ffmpeg または ffprobe のバージョン確認コマンドがゼロ以外の終了コードを返しました。潜在的な問題を示している可能性がありますが、スクリプトは続行を試みます。")
+            else:
+                 logging.info("依存関係の確認に成功しました: ffmpeg および ffprobe が利用可能です。")
+        except Exception as check_exc:
+             logging.critical(f"依存関係の確認中に予期せぬエラーが発生しました: {check_exc}。スクリプトを終了します。")
+             logging.critical(traceback.format_exc())
+             sys.exit(1)
+
+        # --- Run Main Logic ---
+        main()
+
+    except SystemExit as e:
+        # Allow clean exit and ensure the finally block runs
+        # Re-raising the exception so the process exit code is correctly set
+        if e.code != 0:
+            logging.warning(f"スクリプトが終了コード {e.code} で早期終了しました。")
+        raise
+    except Exception as e:
+        logging.critical(f"スクリプトのトップレベルでキャッチされない例外が発生しました: {e}")
+        logging.critical(traceback.format_exc())
+        sys.exit(1) # Explicitly exit with a failure code
+    finally:
+        # This block will run even after sys.exit() is called in try/except
+        logging.shutdown()
+
 
 # --- Script Entry Point ---
 if __name__ == "__main__":
@@ -443,4 +493,4 @@ if __name__ == "__main__":
         logging.critical(traceback.format_exc())
     finally:
         logging.shutdown()
-        input("\nスクリプトの実行が完了しました。Enterキーを押して終了します...")
+        print(True)

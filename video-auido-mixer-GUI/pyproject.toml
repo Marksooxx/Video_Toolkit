@@ -1,0 +1,11 @@
+[project]
+name = "video-audio-mixer-gui"
+version = "0.1.0"
+description = "PySide6 GUI tool for mixing video with multi-track audio"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "configparser==7.2.0",
+    "pyside6==6.9.3",
+    "rich==14.1.0",
+]

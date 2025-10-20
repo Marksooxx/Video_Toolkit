@@ -135,7 +135,7 @@ def find_and_mix_audio(video_name, audio_dir, temp_dir):
     # --- amix 音量标准化配置 ---
     # normalize=0: 禁用音量标准化。直接混合所有音轨，保留原始音量。如果混合后音量过大，可能会导致削波失真 (clipping)。
     # normalize=1 (默认): 启用音量标准化。FFmpeg会自动调整每个音轨的音量，以防止混合后的总音量超过削波阈值，这通常会导致整体音量降低。
-    filter_complex_str = "".join(filter_complex_parts) + f"amix=inputs={len(matching_audios)}:duration=longest:normalize=1{map_output}" 
+    filter_complex_str = "".join(filter_complex_parts) + f"amix=inputs={len(matching_audios)}:duration=longest:normalize=0{map_output}" 
     mix_cmd.extend(['-filter_complex', filter_complex_str])
     mix_cmd.extend(['-map', map_output])
     # Output to temporary WAV file (PCM s16le is a safe choice for intermediate format)
