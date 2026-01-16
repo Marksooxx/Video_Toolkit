@@ -1,4 +1,18 @@
 # -*- coding: utf-8 -*-
+"""
+音频替换脚本 - 视频长度优先版本
+
+与 a4_MultiAudioAuto_ReplaceOriginal_dePrefix.py 的区别:
+- 输出长度固定为视频的长度
+- 如果音频比视频长，音频会被截断
+- 如果音频比视频短，音频结束后为静音
+
+使用方法:
+1. 将此脚本放在包含 MP4 视频的目录
+2. 在同目录下创建 ~audio 文件夹，放入以视频名结尾的 WAV 音频文件
+   例如: BGM_VideoName.wav, SE_VideoName.wav
+3. 运行脚本，输出将保存在 ~mix 文件夹
+"""
 import os
 import sys
 import subprocess
@@ -10,7 +24,7 @@ import re # Import regular expressions for filename matching (optional but poten
 from pathlib import Path
 
 # --- 配置区 ---
-SCRIPT_NAME = "Merge_Prefixed_Audios"
+SCRIPT_NAME = "Merge_Prefixed_Audios_VideoLen"
 SCRIPT_VERSION = "1.0.0"
 MAX_WORKERS = os.cpu_count() or 4
 INPUT_AUDIO_DIR = "~audio"  # Folder name in current directory
@@ -154,7 +168,7 @@ def find_and_mix_audio(video_name, audio_dir, temp_dir):
 def process_video_task(video_file):
     """
     処理単一のビデオファイル：一致するプレフィックスの音声を検索し、それをビデオにマージします。
-    出力の長さは、元のビデオとミキシング後の音声のいずれか長い方になります。
+    出力の長さは、元のビデオの長さに固定されます（音声が長い場合は切り詰められます）。
     戻り値は 'success', 'skipped', or 'failed'。
     """
     task_id = os.path.basename(video_file)
@@ -170,9 +184,6 @@ def process_video_task(video_file):
 
     temp_combined_audio_file = None # Path to the (potentially temporary) combined audio
     temp_audio_to_clean = None      # The actual temp file path to remove later (if created)
-    temp_black_video = None
-    temp_concat_video = None
-    list_file_path = None
     status_to_return = 'failed'
 
     try:
@@ -185,100 +196,42 @@ def process_video_task(video_file):
              status_to_return = 'skipped'
              return status_to_return # Skip this video
 
-        # --- 2. Get Durations ---
+        # --- 2. Get Durations (仅记录信息，不进行视频扩展) ---
         logging.info("ビデオとミキシング後の音声の長さを取得しています...")
         video_duration_str = run_ffprobe(abs_video_file, 'format=duration')
         # Use the combined audio file path (could be original if only one found)
         combined_audio_duration_str = run_ffprobe(temp_combined_audio_file, 'format=duration', stream_type='a')
 
-        if video_duration_str is None or combined_audio_duration_str is None:
-            logging.error(f"ビデオまたはミキシング後の音声の長さを取得できませんでした。失敗としてマークします。")
+        if video_duration_str is None:
+            logging.error(f"ビデオの長さを取得できませんでした。失敗としてマークします。")
             return status_to_return
 
         try:
             video_duration = float(video_duration_str)
-            combined_audio_duration = float(combined_audio_duration_str)
+            combined_audio_duration = float(combined_audio_duration_str) if combined_audio_duration_str else 0.0
             logging.info(f"ビデオの長さ: {video_duration:.3f}秒, ミキシング後の音声の長さ: {combined_audio_duration:.3f}秒")
         except ValueError:
             logging.error(f"ビデオまたはミキシング後の音声の長さの解析に失敗しました (値: V='{video_duration_str}', A='{combined_audio_duration_str}')。失敗としてマークします。")
             return status_to_return
 
-        # --- 3. Handle Duration Difference (Extend Video if Needed) ---
-        duration_tolerance = 0.1
-        video_input_for_final_cmd = abs_video_file # Default video input
-
-        if combined_audio_duration > video_duration + duration_tolerance:
-            duration_diff = combined_audio_duration - video_duration
-            logging.info(f"ミキシングされた音声はビデオより約 {duration_diff:.3f}秒長いため、ビデオを約 {combined_audio_duration:.3f}秒に延長するために黒画面を生成します。")
-
-            # --- Black screen generation (same logic as before) ---
-            video_width_str = run_ffprobe(abs_video_file, 'stream=width', 'v', 0, 'csv=p=0')
-            video_height_str = run_ffprobe(abs_video_file, 'stream=height', 'v', 0, 'csv=p=0')
-            video_fps_str = run_ffprobe(abs_video_file, 'stream=r_frame_rate', 'v', 0)
-
-            if video_width_str is None or video_height_str is None or video_fps_str is None:
-                logging.error(f"ビデオ属性 (幅/高さ/フレームレート) の取得に失敗しました。黒画面を生成できません。失敗としてマークします。")
-                return status_to_return
-            try:
-                # Basic validation of video properties
-                video_width = int(video_width_str)
-                video_height = int(video_height_str)
-                if video_width <= 0 or video_height <= 0: raise ValueError("幅/高さは正でなければなりません")
-                if '/' in video_fps_str:
-                    num, den = map(float, video_fps_str.split('/'))
-                    if den == 0: raise ValueError("FPS 分母がゼロです")
-                    video_fps = num / den
-                else:
-                    video_fps = float(video_fps_str)
-                if video_fps <= 0: raise ValueError("FPS は正でなければなりません")
-            except ValueError as e:
-                 logging.error(f"ビデオ属性の解析に失敗しました: {e} (値: W='{video_width_str}', H='{video_height_str}', FPS='{video_fps_str}')。失敗としてマークします。")
-                 return status_to_return
-
-            logging.debug(f"ビデオ属性 - 解像度: {video_width}x{video_height}, FPS: {video_fps:.3f}")
-
-            # Temporary files in OUTPUT_MIX_DIR
-            temp_black_video = os.path.join(abs_mix_dir, f"temp_black_{video_name}_{int(time.time())}.mp4")
-            temp_concat_video = os.path.join(abs_mix_dir, f"temp_concat_{video_name}_{int(time.time())}.mp4")
-            list_file_path = os.path.join(abs_mix_dir, f"temp_list_{video_name}_{int(time.time())}.txt")
-
-            black_cmd = ['-f', 'lavfi', '-i', f'color=c=black:s={video_width}x{video_height}:d={duration_diff:.6f}',
-                         '-r', str(video_fps), '-pix_fmt', 'yuv420p', temp_black_video]
-            logging.info(f"[タスク {task_id}] 黒画面クリップを生成しています...")
-            if not run_ffmpeg_command(black_cmd):
-                logging.error(f"[タスク {task_id}] 黒画面の生成に失敗しました。失敗としてマークします。")
-                return status_to_return
-
-            try:
-                abs_orig_video_path_fmt = abs_video_file.replace('\\', '/')
-                abs_black_video_path_fmt = temp_black_video.replace('\\', '/')
-                with open(list_file_path, 'w', encoding='utf-8') as f:
-                    f.write(f"file '{abs_orig_video_path_fmt}'\n")
-                    f.write(f"file '{abs_black_video_path_fmt}'\n")
-                logging.debug(f"[タスク {task_id}] リストファイルを作成しました: {list_file_path}")
-            except IOError as e:
-                logging.error(f"[タスク {task_id}] concatリストファイルの作成に失敗しました: {e}。失敗としてマークします。")
-                return status_to_return
-
-            concat_cmd = ['-f', 'concat', '-safe', '0', '-i', list_file_path, '-c', 'copy', temp_concat_video]
-            logging.info(f"[タスク {task_id}] 元のビデオと黒画面を結合しています...")
-            if not run_ffmpeg_command(concat_cmd):
-                logging.error(f"[タスク {task_id}] ビデオの結合に失敗しました。失敗としてマークします。")
-                return status_to_return
-
-            video_input_for_final_cmd = temp_concat_video # Use the extended video
-            logging.info(f"[タスク {task_id}] ビデオは正常に約 {combined_audio_duration:.3f}秒に延長されました。")
+        # --- 3. 输出长度说明 (固定为视频长度，不扩展视频) ---
+        if combined_audio_duration > video_duration:
+            logging.info(f"[タスク {task_id}] 音声はビデオより長い ({combined_audio_duration:.3f}秒 > {video_duration:.3f}秒)。音声はビデオの長さ ({video_duration:.3f}秒) に切り詰められます。")
+        elif combined_audio_duration < video_duration:
+            logging.info(f"[タスク {task_id}] 音声はビデオより短い ({combined_audio_duration:.3f}秒 < {video_duration:.3f}秒)。出力はビデオの長さ ({video_duration:.3f}秒) になります。")
         else:
-            logging.info(f"[タスク {task_id}] ミキシングされた音声の長さはビデオより長くありません ({combined_audio_duration:.3f}秒 <= {video_duration:.3f}秒)。出力はビデオの長さ ({video_duration:.3f}秒) になります。")
+            logging.info(f"[タスク {task_id}] 音声とビデオの長さがほぼ同じです ({video_duration:.3f}秒)。")
 
-        # --- 4. Final Merge (Video + Combined Audio) ---
-        logging.info(f"[タスク {task_id}] ビデオとミキシング後の音声トラックの最終マージを開始します (長さは長い方に合わせます)...")
-        final_merge_cmd = ['-i', video_input_for_final_cmd, # Original or Extended Video
-                           '-i', temp_combined_audio_file,  # The single (potentially temp) combined audio track
-                           '-map', '0:v:0',                 # Video from input 0
-                           '-map', '1:a:0',                 # Audio from input 1 (combined audio)
-                           '-c:v', 'copy',                  # Copy video codec
-                           '-c:a', 'aac', '-b:a', '320k',   # Encode combined audio to AAC
+        # --- 4. Final Merge (Video + Combined Audio, 固定为视频长度) ---
+        # 使用 -shortest 选项确保输出长度为视频长度
+        logging.info(f"[タスク {task_id}] ビデオとミキシング後の音声トラックの最終マージを開始します (長さはビデオに合わせます)...")
+        final_merge_cmd = ['-i', abs_video_file,             # Original Video
+                           '-i', temp_combined_audio_file,   # The single (potentially temp) combined audio track
+                           '-map', '0:v:0',                  # Video from input 0
+                           '-map', '1:a:0',                  # Audio from input 1 (combined audio)
+                           '-c:v', 'copy',                   # Copy video codec
+                           '-c:a', 'aac', '-b:a', '320k',    # Encode combined audio to AAC
+                           '-shortest',                      # 【关键】输出长度为最短的输入流（即视频）
                            output_file]
         logging.debug(f"[タスク {task_id}] 最終マージコマンド: {' '.join(['ffmpeg'] + final_merge_cmd)}")
 
@@ -302,7 +255,7 @@ def process_video_task(video_file):
         # --- 5. Cleanup ---
         logging.debug(f"[タスク {task_id}] 一時ファイルのクリーンアップを開始します...")
         # Add the temporary combined audio file to the list of files to remove
-        files_to_remove = [temp_audio_to_clean, temp_black_video, temp_concat_video, list_file_path]
+        files_to_remove = [temp_audio_to_clean]
         for f_path in files_to_remove:
             # Check if f_path is not None and exists before attempting removal
             if f_path and os.path.exists(f_path):
@@ -322,7 +275,7 @@ def main():
     logging.info("="*20 + f" {SCRIPT_NAME} v{SCRIPT_VERSION} 実行開始 " + "="*20)
     logging.info(f"実行ディレクトリ: {current_working_dir}")
     logging.info("モード: すべてのプレフィックスに一致する音声ファイルを検索し、ミキシング後にビデオにマージします。")
-    logging.info("出力の長さは、元のビデオとミキシング後の音声のいずれか長い方になります。")
+    logging.info("出力の長さは、元のビデオの長さに固定されます。")
 
     # Use os.path.abspath directly on folder names (relative to CWD)
     abs_input_audio_dir = os.path.abspath(INPUT_AUDIO_DIR)

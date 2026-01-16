@@ -200,7 +200,7 @@ def process_video_task(video_file):
                 '-map', '0:v:0',            # Map video from extended input (0)
                 '-map', '[a_mix]',          # Map the mixed audio output
                 '-c:v', 'copy',             # Copy video
-                '-c:a', 'aac', '-b:a', '192k', # Encode mixed audio
+                '-c:a', 'aac', '-b:a', '320k', # Encode mixed audio
                 output_file
             ]
             logging.debug(f"[タスク {task_id}] Mix コマンド (拡張ビデオ): {' '.join(['ffmpeg'] + final_mix_cmd)}")
@@ -216,7 +216,7 @@ def process_video_task(video_file):
                 '-map', '0:v:0',            # Map video from original input (0)
                 '-map', '[a_mix]',          # Map the mixed audio output
                 '-c:v', 'copy',             # Copy video
-                '-c:a', 'aac', '-b:a', '192k', # Encode mixed audio
+                '-c:a', 'aac', '-b:a', '320k', # Encode mixed audio
                 output_file
             ]
             logging.debug(f"[タスク {task_id}] Mix コマンド (オリジナルビデオ): {' '.join(['ffmpeg'] + final_mix_cmd)}")

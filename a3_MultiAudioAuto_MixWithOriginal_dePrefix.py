@@ -290,7 +290,7 @@ def process_video_task(video_file):
                     '-map', '0:v:0',                    # Map video from extended video (Input 0)
                     '-map', '[a_out]',                  # Map the final mixed audio
                     '-c:v', 'copy',
-                    '-c:a', 'aac', '-b:a', '192k',
+                    '-c:a', 'aac', '-b:a', '320k',
                     output_file
                 ]
                 logging.debug(f"最終ミックスコマンド (延長されたビデオ): {' '.join(['ffmpeg'] + final_merge_cmd)}")
@@ -304,7 +304,7 @@ def process_video_task(video_file):
                     '-map', '0:v:0',                    # Map video from original video (Input 0)
                     '-map', '[a_out]',                  # Map the final mixed audio
                     '-c:v', 'copy',
-                    '-c:a', 'aac', '-b:a', '192k',
+                    '-c:a', 'aac', '-b:a', '320k',
                     output_file
                 ]
                 logging.debug(f"最終ミックスコマンド (元のビデオ): {' '.join(['ffmpeg'] + final_merge_cmd)}")
@@ -317,7 +317,7 @@ def process_video_task(video_file):
                 '-map', '0:v:0',                     # Map video from Input 0
                 '-map', '1:a:0',                     # Map audio from Input 1 (external only)
                 '-c:v', 'copy',
-                '-c:a', 'aac', '-b:a', '192k',
+                '-c:a', 'aac', '-b:a', '320k',
                 output_file
             ]
             logging.debug(f"最終マージコマンド (外部音声のみ): {' '.join(['ffmpeg'] + final_merge_cmd)}")

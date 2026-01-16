@@ -197,7 +197,7 @@ def process_video_task(video_file):
                      '-map', '0:v:0',           # Video from input 0
                      '-map', '1:a:0',           # Audio from input 1
                      '-c:v', 'copy',            # Copy video
-                     '-c:a', 'aac', '-b:a', '192k', # Encode audio
+                     '-c:a', 'aac', '-b:a', '320k', # Encode audio
                      # REMOVED '-shortest'
                      output_file]
         logging.debug(f"[タスク {task_id}] 置換コマンド (-shortestなし): {' '.join(['ffmpeg'] + merge_cmd)}")
