@@ -255,6 +255,14 @@ def process_video_task(video_file):
         logging.info(f"--- [タスク {task_id}] 処理終了 (最終ステータス: {status_to_return.upper()}) ---")
 
 # --- 主程序 ---
+# --- 支持的视频文件扩展名 (实际处理交由 ffmpeg，复制视频流到容器即可) ---
+VIDEO_EXTENSIONS = (
+    '.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm',
+    '.m4v', '.3gp', '.ts', '.mts', '.m2ts', '.vob', '.mpg',
+    '.mpeg', '.divx', '.xvid', '.asf', '.rm', '.rmvb',
+)
+
+
 def main():
     start_time = time.time()
     current_working_dir = Path.cwd().resolve()
@@ -285,14 +293,14 @@ def main():
     # Find video files in current directory
     try:
         current_dir = '.'
-        video_files = [f for f in os.listdir(current_dir) if f.lower().endswith('.mp4') and os.path.isfile(os.path.join(current_dir, f))]
+        video_files = [f for f in os.listdir(current_dir) if f.lower().endswith(VIDEO_EXTENSIONS) and os.path.isfile(os.path.join(current_dir, f))]
         if not video_files:
-            logging.warning(f"現在のディレクトリ '{os.path.abspath(current_dir)}' にMP4ファイルが見つかりませんでした。スクリプトを終了します。")
+            logging.warning(f"現在のディレクトリ '{os.path.abspath(current_dir)}' に動画ファイルが見つかりませんでした。スクリプトを終了します。")
             return
         total_tasks = len(video_files)
-        logging.info(f"処理対象のMP4ファイルが合計 {total_tasks} 個見つかりました。")
+        logging.info(f"処理対象の動画ファイルが合計 {total_tasks} 個見つかりました。")
     except Exception as e:
-        logging.error(f"MP4ファイルの検索中にエラーが発生しました: {e}。スクリプトを終了します。")
+        logging.error(f"動画ファイルの検索中にエラーが発生しました: {e}。スクリプトを終了します。")
         return
 
     completed_tasks = 0

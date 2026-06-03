@@ -1,0 +1,17 @@
+# Python 字节码 / 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 测试缓存
+.pytest_cache/
+
+# 打包产物
+*.egg-info/
+build/
+dist/
